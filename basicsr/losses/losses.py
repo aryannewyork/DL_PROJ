@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 from torch import autograd as autograd
 from torch import nn as nn
@@ -496,7 +497,7 @@ class GANFeatLoss(nn.Module):
 
 @LOSS_REGISTRY.register()
 class SAMLoss(nn.Module):
-    """Perceptual loss with commonly used style loss.
+    """Defining loss function using Segment Anything (SAM) Model.
 
     Args:
         layer_weights (dict): The weight for each layer of vgg feature.
@@ -521,7 +522,7 @@ class SAMLoss(nn.Module):
     def __init__(self,
                  loss_weight=1.0,
                  criterion='l2',
-                 sam_checkpoint='/experiments/pretrained_models/sam_vit_h_4b8939.pth',
+                 sam_checkpoint='experiments/pretrained_models/sam_vit_h_4b8939.pth',
                  model_type="vit_h"):
         super(SAMLoss, self).__init__()
 
@@ -551,7 +552,7 @@ class SAMLoss(nn.Module):
         Returns:
             Tensor: Forward results.
         """
-        # extract vgg features
+        # extract masks using SAM
         x_masks = self.mask_generator.generate(x)
         gt_masks = self.mask_generator.generate(gt)
 

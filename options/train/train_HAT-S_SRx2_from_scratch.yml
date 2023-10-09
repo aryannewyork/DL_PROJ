@@ -46,8 +46,8 @@ datasets:
   val_3:
     name: Urban100
     type: PairedImageDataset
-    dataroot_gt: datasets/urban100/HR
-    dataroot_lq: datasets/urban100/image_SRF_2
+    dataroot_gt: datasets/Urban100/HR
+    dataroot_lq: datasets/Urban100/image_SRF_2
     io_backend:
       type: disk
 
@@ -103,7 +103,7 @@ train:
     type: SAMLoss
     loss_weight: 1.0
     criterion: l2
-    sam_checkpoint: experiments\pretrained_models\sam_vit_h_4b8939.pth
+    sam_checkpoint: experiments/pretrained_models/sam_vit_h_4b8939.pth
     model_type: vit_h
 
 # validation settings
