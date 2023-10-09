@@ -8,6 +8,8 @@ from basicsr.archs.vgg_arch import VGGFeatureExtractor
 from basicsr.utils.registry import LOSS_REGISTRY
 from .loss_util import weighted_loss
 
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+
 _reduction_modes = ['none', 'mean', 'sum']
 
 
@@ -490,3 +492,77 @@ class GANFeatLoss(nn.Module):
                 unweighted_loss = self.loss_op(pred_fake[i][j], pred_real[i][j].detach())
                 loss += unweighted_loss / num_d
         return loss * self.loss_weight
+
+
+@LOSS_REGISTRY.register()
+class SAMLoss(nn.Module):
+    """Perceptual loss with commonly used style loss.
+
+    Args:
+        layer_weights (dict): The weight for each layer of vgg feature.
+            Here is an example: {'conv5_4': 1.}, which means the conv5_4
+            feature layer (before relu5_4) will be extracted with weight
+            1.0 in calculating losses.
+        vgg_type (str): The type of vgg network used as feature extractor.
+            Default: 'vgg19'.
+        use_input_norm (bool):  If True, normalize the input image in vgg.
+            Default: True.
+        range_norm (bool): If True, norm images with range [-1, 1] to [0, 1].
+            Default: False.
+        perceptual_weight (float): If `perceptual_weight > 0`, the perceptual
+            loss will be calculated and the loss will multiplied by the
+            weight. Default: 1.0.
+        style_weight (float): If `style_weight > 0`, the style loss will be
+            calculated and the loss will multiplied by the weight.
+            Default: 0.
+        criterion (str): Criterion used for perceptual loss. Default: 'l1'.
+    """
+
+    def __init__(self,
+                 loss_weight=1.0,
+                 criterion='l2',
+                 sam_checkpoint='/experiments/pretrained_models/sam_vit_h_4b8939.pth',
+                 model_type="vit_h"):
+        super(SAMLoss, self).__init__()
+
+        self.sam_weight = loss_weight
+        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        self.mask_generator = SamAutomaticMaskGenerator(sam)
+
+        self.criterion_type = criterion
+        if self.criterion_type == 'l1':
+            self.criterion = torch.nn.L1Loss()
+        elif self.criterion_type == 'l2':
+            self.criterion = torch.nn.MSELoss()
+        elif self.criterion_type == 'cce':
+            self.criterion = torch.nn.CrossEntropyLoss()
+        elif self.criterion_type == 'fro':
+            self.criterion = None
+        else:
+            raise NotImplementedError(f'{criterion} criterion has not been supported.')
+
+    def forward(self, x, gt):
+        """Forward function.
+
+        Args:
+            x (Tensor): Input tensor with shape (n, c, h, w).
+            gt (Tensor): Ground-truth tensor with shape (n, c, h, w).
+
+        Returns:
+            Tensor: Forward results.
+        """
+        # extract vgg features
+        x_masks = self.mask_generator.generate(x)
+        gt_masks = self.mask_generator.generate(gt)
+
+        x_masks_overlap = np.zeros(x_masks[0]['segmentation'].shape)
+        for i in range(0,83):
+            x_masks_overlap[x_masks[i]['segmentation']] = i+1
+
+        gt_masks_overlap = np.zeros(gt_masks[0]['segmentation'].shape)
+        for i in range(0,83):
+            gt_masks_overlap[gt_masks[i]['segmentation']] = i+1     
+
+        sam_loss = self.criterion(gt_masks_overlap, x_masks_overlap)
+
+        return sam_loss * self.sam_weight

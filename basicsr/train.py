@@ -118,6 +118,7 @@ def train_pipeline(root_path):
 
     # create train and validation dataloaders
     result = create_train_val_dataloader(opt, logger)
+    print
     train_loader, train_sampler, val_loaders, total_epochs, total_iters = result
 
     # create model

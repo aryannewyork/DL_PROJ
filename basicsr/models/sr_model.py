@@ -21,7 +21,7 @@ class SRModel(BaseModel):
         # define network
         self.net_g = build_network(opt['network_g'])
         self.net_g = self.model_to_device(self.net_g)
-        self.print_network(self.net_g)
+        # self.print_network(self.net_g)
 
         # load pretrained models
         load_path = self.opt['path'].get('pretrain_network_g', None)
@@ -63,8 +63,13 @@ class SRModel(BaseModel):
         else:
             self.cri_perceptual = None
 
-        if self.cri_pix is None and self.cri_perceptual is None:
-            raise ValueError('Both pixel and perceptual losses are None.')
+        if train_opt.get('sam_opt'):
+            self.cri_sam = build_loss(train_opt['sam_opt']).to(self.device)
+        else:
+            self.cri_sam = None
+
+        if self.cri_pix is None and self.cri_perceptual is None and self.cri_sam is None:
+            raise ValueError('All losses are None.')
 
         # set up optimizers and schedulers
         self.setup_optimizers()
@@ -109,6 +114,11 @@ class SRModel(BaseModel):
             if l_style is not None:
                 l_total += l_style
                 loss_dict['l_style'] = l_style
+        # SAM loss
+        if self.cri_sam:
+            l_sam = self.cri_sam(self.output, self.gt)
+            l_total += l_sam
+            loss_dict['l_sam'] = l_sam
 
         l_total.backward()
         self.optimizer_g.step()
